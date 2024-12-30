@@ -1,6 +1,6 @@
 from service import db
-from sqlalchemy.types import INTEGER, SMALLINT, VARCHAR, DATETIME, BOOLEAN, TIME
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.types import INTEGER, SMALLINT, VARCHAR, BOOLEAN
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from datetime import datetime
 
 class QueuedParty(db.Model):
@@ -12,13 +12,13 @@ class QueuedParty(db.Model):
     holder_phone = db.Column(SMALLINT, nullable=False, index=True)
     holder_email = db.Column(VARCHAR(64), nullable=False, index=True)
 
-    time_booked = db.Column(DATETIME, nullable=False)
+    time_booked = db.Column(TIMESTAMP, nullable=False)
     queued_index = db.Column(SMALLINT, nullable=False, default=0)
 
     slot_id = db.Column(SMALLINT, db.ForeignKey("slots.id"), nullable=False)
-    slot_time = db.Column(DATETIME, db.ForeignKey("slots.time"), nullable=False)
+    slot_time = db.Column(TIMESTAMP, db.ForeignKey("slots.time"), nullable=False)
 
-    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : datetime, index : int, slot_id : int, slot_time : datetime):
+    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : TIMESTAMP, index : int, slot_id : int, slot_time : TIMESTAMP):
         self.holder_name = hName
         self.holder_phone=hPhone
         self.holder_email = hMail
@@ -45,14 +45,15 @@ class Slot(db.Model):
 
     id = db.Column(INTEGER, primary_key=True)
 
-    time = db.Column(DATETIME, nullable=False)
+    time = db.Column(TIMESTAMP, nullable=False)
+    room = db.Column(SMALLINT, nullable=False)
     booked = db.Column(BOOLEAN, nullable=False, default=False)
 
     queue_length = db.Column(SMALLINT, nullable=False, default=0)
 
     holder = db.Column(INTEGER, db.ForeignKey("queued_parties.holder_email"), nullable=False)
 
-    def __init__(self, time : datetime, booked : bool, qLen : int, holder : int):
+    def __init__(self, time : TIMESTAMP, booked : bool, qLen : int, holder : int):
         self.time = time
         self.booked = booked
         self.queue_length = qLen

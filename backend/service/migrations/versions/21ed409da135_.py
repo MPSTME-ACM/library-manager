@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 852be3c022d0
+Revision ID: 21ed409da135
 Revises: 
-Create Date: 2024-12-30 23:04:07.958493
+Create Date: 2024-12-30 23:12:14.333174
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '852be3c022d0'
+revision = '21ed409da135'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -23,10 +23,10 @@ def upgrade():
     sa.Column('holder_name', sa.VARCHAR(length=64), nullable=False),
     sa.Column('holder_phone', sa.SMALLINT(), nullable=False),
     sa.Column('holder_email', sa.VARCHAR(length=64), nullable=False),
-    sa.Column('time_booked', sa.DATETIME(), nullable=False),
+    sa.Column('time_booked', postgresql.TIMESTAMP(), nullable=False),
     sa.Column('queued_index', sa.SMALLINT(), nullable=False),
     sa.Column('slot_id', sa.SMALLINT(), nullable=False),
-    sa.Column('slot_time', sa.DATETIME(), nullable=False),
+    sa.Column('slot_time', postgresql.TIMESTAMP(), nullable=False),
     sa.ForeignKeyConstraint(['slot_id'], ['slots.id'], ),
     sa.ForeignKeyConstraint(['slot_time'], ['slots.time'], ),
     sa.PrimaryKeyConstraint('id')
@@ -37,7 +37,8 @@ def upgrade():
 
     op.create_table('slots',
     sa.Column('id', sa.INTEGER(), nullable=False),
-    sa.Column('time', sa.DATETIME(), nullable=False),
+    sa.Column('time', postgresql.TIMESTAMP(), nullable=False),
+    sa.Column('room', sa.SMALLINT(), nullable=False),
     sa.Column('booked', sa.BOOLEAN(), nullable=False),
     sa.Column('queue_length', sa.SMALLINT(), nullable=False),
     sa.Column('holder', sa.INTEGER(), nullable=False),
