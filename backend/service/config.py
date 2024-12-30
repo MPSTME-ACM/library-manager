@@ -2,7 +2,6 @@ import os
 from dotenv import load_dotenv
 
 CWD = os.path.dirname(__file__)
-print(CWD)
 
 
 output = load_dotenv(dotenv_path=os.path.join(os.path.dirname(CWD), '.env'),
@@ -12,8 +11,6 @@ output = load_dotenv(dotenv_path=os.path.join(os.path.dirname(CWD), '.env'),
 if not output:
     print(f"ERROR: Failed to parse .env file at: {os.path.join(os.path.dirname(CWD), '.env')}. Make sure path is entered correctly, and that a file actually exists there.")
     raise FileNotFoundError()
-
-print(os.environ)
 
 class AppConfig:
     try:
