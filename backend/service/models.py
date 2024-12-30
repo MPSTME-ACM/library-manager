@@ -50,7 +50,7 @@ class Slot(db.Model):
 
     queue_length = db.Column(SMALLINT, nullable=False, default=0)
 
-    holder = db.Column(INTEGER, db.ForeignKey("queued_parties.email"), nullable=False)
+    holder = db.Column(INTEGER, db.ForeignKey("queued_parties.holder_email"), nullable=False)
 
     def __init__(self, time : datetime, booked : bool, qLen : int, holder : int):
         self.time = time
