@@ -28,6 +28,7 @@ class AppConfig:
         OPENIING_TIME = int(os.environ["LIB_OPENING_TIME"])
         CLOSING_TIME = int(os.environ["LIB_CLOSING_TIME"])
         FUTURE_WINDOW_SIZE = int(os.environ["LIB_FUTURE_WINDOW_SIZE"])
+        MAX_QLEN = int(os.environ["LIB_MAX_QUEUE_SIZE"])
 
     except KeyError as e:
         print(f"ERROR: Missing configuration in {os.path.dirname(CWD), '.env'}, check .env file, Original Error: {e}")
