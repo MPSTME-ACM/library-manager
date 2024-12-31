@@ -9,6 +9,24 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import datetime, timedelta, time
 
+### ERROR HANDLERS ###
+@app.errorhandler(BadRequest)
+def badRequest(e : BadRequest):
+    body = {"message" : e.description}
+    if hasattr(e, "additional_info"):
+        body["info"] = e.additional_info
+    return jsonify(body), 400
+
+@app.errorhandler(InternalServerError)
+@app.errorhandler(SQLAlchemyError)
+@app.errorhandler(Exception)
+def genericExc(e : Exception):
+    body = {"message" : e.description}
+    if hasattr(e, "additional_info"):
+        body["info"] = e.additional_info
+    return jsonify(body), 500
+    
+
 ### ENDPOINTS ###
 @app.route("/rooms/<int:id>/slots", methods=["GET"])
 def getRoomDetails(id) -> Response:
