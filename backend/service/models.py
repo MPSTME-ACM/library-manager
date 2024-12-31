@@ -1,6 +1,7 @@
 from service import db
 from sqlalchemy.types import INTEGER, SMALLINT, VARCHAR, BOOLEAN
 from sqlalchemy.dialects.postgresql import DATE, TIME, TIMESTAMP
+from datetime import datetime, date, time
 
 class QueuedParty(db.Model):
     __tablename__ = "queued_parties"
@@ -14,19 +15,21 @@ class QueuedParty(db.Model):
     time_booked = db.Column(TIMESTAMP, nullable=False)
     queued_index = db.Column(SMALLINT, nullable=False, default=0)
 
-    slot_id = db.Column(SMALLINT, db.ForeignKey("slots.id"), nullable=False)
+    room_id = db.Column(SMALLINT, db.ForeignKey("slots.room"), nullable=False)
+    slot_id = db.Column(INTEGER, db.ForeignKey("slots.id"), nullable=False)
     slot_time = db.Column(TIME, db.ForeignKey("slots.time"), nullable=False)
     slot_date = db.Column(DATE, db.ForeignKey("slots.date"), nullable=False)
-    slot = db.relationship("Slot", backref=db.backref("queued_parties", lazy=True))
 
-    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : TIMESTAMP, index : int, slot_id : int, slot_time : TIMESTAMP):
-        self.holder_name = hName
+    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : datetime, index : int, room_id : int, slot_id : int, slot_time : time, slot_date : date):
+        self.holder_name=hName
         self.holder_phone=hPhone
-        self.holder_email = hMail
+        self.holder_email=hMail
         self.time_booked=tBooked
         self.queued_index=index
+        self.room_id=room_id
         self.slot_id=slot_id
         self.slot_time=slot_time
+        self.slot_date=slot_date
 
     def __repr__(self) -> str:
         return f"<QueuedParty({self.holder_name}, {self.holder_phone}, {self.holder_email}, {self.time_booked}, {self.queued_index}, {self.slot_id}, {self.slot_time}) (DB ID: f{self.id}) object at f{id(self)}>"
@@ -46,18 +49,17 @@ class Slot(db.Model):
 
     id = db.Column(INTEGER, primary_key=True)
 
-    time = db.Column(TIME, nullable=False)
+    time_slot = db.Column(TIME, nullable=False)
     date = db.Column(DATE, nullable=False)
     room = db.Column(SMALLINT, nullable=False)
     booked = db.Column(BOOLEAN, nullable=False, default=False)
 
     queue_length = db.Column(SMALLINT, nullable=False, default=0)
-    queued_parties = db.relationship("QueuedParty", backref="slot", lazy=True)
 
-    holder = db.Column(INTEGER, db.ForeignKey("queued_parties.holder_email"), nullable=False)
+    holder = db.Column(INTEGER, nullable=True)
 
-    def __init__(self, time : TIMESTAMP, booked : bool, qLen : int, holder : int):
-        self.time = time
+    def __init__(self, t : time, booked : bool, qLen : int, holder : int):
+        self.time_slot = time
         self.booked = booked
         self.queue_length = qLen
         self.holder = holder
