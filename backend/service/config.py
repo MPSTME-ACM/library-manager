@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+import redis
 
 CWD = os.path.dirname(__file__)
 
@@ -24,6 +25,13 @@ class AppConfig:
                                                                                      url=os.environ["DB_URI"],
                                                                                      db=os.environ["DB_NAME"])
         SQLALCHEMY_TRACK_MODIFICATIONS = os.environ.get("DB_TRACK_MODIFICATIONS", False)
+
+        REQUIRE_REDIS = bool(int(os.environ["REQUIRE_REDIS"]))
+        REDIS_HOST = os.environ.get("REDIS_HOST")
+        REDIS_PORT = int(os.environ.get("REDIS_PORT"))
+
+        if REQUIRE_REDIS and not (REDIS_HOST and REDIS_PORT):
+            raise ValueError("REQUIRE_REDIS set to True, but mandatory args not found")
 
         OPENIING_TIME = int(os.environ["LIB_OPENING_TIME"])
         CLOSING_TIME = int(os.environ["LIB_CLOSING_TIME"])
