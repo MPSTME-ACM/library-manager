@@ -1,17 +1,18 @@
 from service import app, db
-from backend.service.models import Slot
+from service.models import Slot, QueuedParty
+from service.auxillary import enforce_JSON
 
-from flask import request, Response, jsonify
+from flask import request, Response, jsonify, abort
 from werkzeug.exceptions import BadRequest, Conflict, NotFound, InternalServerError
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, update, and_
 from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import datetime, timedelta, time
 
 ### ERROR HANDLERS ###
 @app.errorhandler(BadRequest)
-def badRequest(e : BadRequest):
+def err_badReq(e : BadRequest):
     body = {"message" : e.description}
     if hasattr(e, "additional_info"):
         body["info"] = e.additional_info
@@ -20,7 +21,7 @@ def badRequest(e : BadRequest):
 @app.errorhandler(InternalServerError)
 @app.errorhandler(SQLAlchemyError)
 @app.errorhandler(Exception)
-def genericExc(e : Exception):
+def err_generic(e : Exception):
     body = {"message" : e.description}
     if hasattr(e, "additional_info"):
         body["info"] = e.additional_info
@@ -79,8 +80,60 @@ def getRoomDetails(id) -> Response:
         raise InternalServerError() #NOTE: Generic decriptions are handled by @app.errorhandler(InternalServerError), no need to set description manually
 
 @app.route("/book/<int:id>", methods=["POST"])
-def bookRoom() -> Response:
-    ...
+@enforce_JSON
+def bookRoom(id) -> Response:
+    bookingData = request.get_json(force=True, silent=False)
+
+    try:
+        booking_date = bookingData["date"]
+        booking_time = bookingData["time"]
+        holder_num = bookingData["number"]
+        holder_email = bookingData["email"]
+        holder_name = bookingData["name"]
+
+        booking_time = int(booking_time)
+        if booking_time < app.config["OPENING_TIME"] or booking_time > app.config["CLOSING_TIME"]:
+            raise ValueError()
+                
+        booking_time = time(booking_time // 100, 0)
+
+        currentDate = datetime.date(datetime.now())
+        booking_date = datetime.strptime(booking_date, "%d%m%y").date()
+        if booking_date > currentDate + timedelta(days=app.config["FUTURE_WINDOW_SIZE"]):
+            raise BadRequest(f"You can only book rooms til {(currentDate + timedelta(days=app.config['FUTURE_WINDOW_SIZE'])).strftime('%d%m%y')}")
+
+    except KeyError as e:
+        raise BadRequest(f"Mandatory field missing in JSON body of request sent to {request.root_path}")
+    except ValueError as e:
+        raise BadRequest(f"Invalid data sent to POST {request.root_path}")
+    
+    try:
+        with db.session.begin():
+            slot : Slot | None = db.session.execute(select(Slot)
+                                            .where(Slot.room == id, Slot.booked == False, Slot.date == booking_date, Slot.time == booking_time)
+                                            .with_for_update(nowait=True)
+                                            ).scalar_one_or_none()
+
+            if not slot:
+                return jsonify("Slot Unavailable"), 404
+
+            db.session.execute(update(Slot)
+                               .where(Slot.id == slot.id)
+                               .values(booked=True, 
+                                       queue_length=1,
+                                       holder=holder_email))
+
+            newParty = QueuedParty(holder_name, holder_num, holder_email, datetime.now(), 0, slot.room, slot.id, slot.time, slot.date)
+            db.session.add(newParty)
+
+            db.session.commit()
+            db.session.close()
+
+            return jsonify({"room_id" : slot.room, "slot_time" : slot.time_slot, "slot_date" : slot.date}), 201
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error occurred while booking slot: {e}")
+        abort(500)
 
 @app.route("/enqueue/<int:id>", methods=["POST"])
 def enqueueToRoom() -> Response:
