@@ -137,7 +137,60 @@ def bookRoom(id) -> Response:
 
 @app.route("/enqueue/<int:id>", methods=["POST"])
 def enqueueToRoom() -> Response:
-    ...
+    bookingData = request.get_json(force=True, silent=False)
+
+    try:
+        booking_date = bookingData["date"]
+        booking_time = bookingData["time"]
+        holder_num = bookingData["number"]
+        holder_email = bookingData["email"]
+        holder_name = bookingData["name"]
+
+        booking_time = int(booking_time)
+        if booking_time < app.config["OPENING_TIME"] or booking_time > app.config["CLOSING_TIME"]:
+            raise ValueError()
+                
+        booking_time = time(booking_time // 100, 0)
+
+        currentDate = datetime.date(datetime.now())
+        booking_date = datetime.strptime(booking_date, "%d%m%y").date()
+        if booking_date > currentDate + timedelta(days=app.config["FUTURE_WINDOW_SIZE"]):
+            raise BadRequest(f"You can only book rooms til {(currentDate + timedelta(days=app.config['FUTURE_WINDOW_SIZE'])).strftime('%d%m%y')}")
+
+    except KeyError as e:
+        raise BadRequest(f"Mandatory field missing in JSON body of request sent to {request.root_path}")
+    except ValueError as e:
+        raise BadRequest(f"Invalid data sent to POST {request.root_path}")
+    
+    try:
+        with db.session.begin():
+            slot : Slot | None = db.session.execute(select(Slot)
+                                            .where(Slot.room == id, Slot.booked == True, Slot.date == booking_date, Slot.time == booking_time)
+                                            .with_for_update(nowait=True)
+                                            ).scalar_one_or_none()
+
+            if not slot:
+                return jsonify("Slot Unavailable"), 404
+            
+            if slot.queue_length >= app.config["MAX_QLEN"]:
+                return jsonify(f"Queue length exceeds maximum allowed parties, which is {app.config['MAX_QLEN']}"), 422
+
+            db.session.execute(update(Slot)
+                            .where(Slot.id == slot.id)
+                            .values(queue_length=slot.queue_length+1,
+                                    holder=holder_email))
+
+            newParty = QueuedParty(holder_name, holder_num, holder_email, datetime.now(), slot.queue_length+1, slot.room, slot.id, slot.time, slot.date)
+            db.session.add(newParty)
+
+            db.session.commit()
+            db.session.close()
+
+            return jsonify({"room_id" : slot.room, "slot_time" : slot.time_slot, "slot_date" : slot.date, "queue_index" : slot.queue_length + 1}), 201
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error occurred while booking slot: {e}")
+        abort(500)
 
 @app.route("/cancel/<int:id>", methods=["DELETE"])
 def cancelBooking() -> Response:
