@@ -1,6 +1,6 @@
-from service import app, db
+from service import app, db, redisManager
 from service.models import Slot, QueuedParty
-from service.auxillary import enforce_JSON
+from backend.service.auxillary_modules.auxillary import enforce_JSON
 
 from flask import request, Response, jsonify, abort
 from werkzeug.exceptions import BadRequest, Conflict, NotFound, InternalServerError
@@ -9,6 +9,7 @@ from sqlalchemy import select, update, and_
 from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import datetime, timedelta, time
+import orjson
 
 ### ERROR HANDLERS ###
 @app.errorhandler(BadRequest)
@@ -33,6 +34,13 @@ def err_generic(e : Exception):
 def getRoomDetails(id) -> Response:
     req_date = request.args.get("date")
     req_time = request.args.get("time")
+
+    try:
+        _result : bytes | None = redisManager.safe_execute_command("GET", True, f"{id}:{req_date}:{req_time}")
+        if _result:
+            return jsonify(orjson.loads(_result)), 200
+    except Exception as e:
+        print("Failed cache lookup")
 
     clauses = [Slot.room==id]
     currentDate = datetime.date(datetime.now())
@@ -72,6 +80,7 @@ def getRoomDetails(id) -> Response:
             return jsonify([]), 404
         
         pyReadableResult = [result.__CustomDict__() for result in results]
+        redisManager.safe_execute_command("SETEX", True, f"{id}:{req_date}:{req_time}", 300, orjson.dumps(pyReadableResult))
         return jsonify(pyReadableResult), 200
     except SQLAlchemyError as e:
         raise InternalServerError("There seems to be an issue with our database service, please try again later :(")
