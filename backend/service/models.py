@@ -1,7 +1,6 @@
 from service import db
 from sqlalchemy.types import INTEGER, SMALLINT, VARCHAR, BOOLEAN
-from sqlalchemy.dialects.postgresql import TIMESTAMP
-from datetime import datetime
+from sqlalchemy.dialects.postgresql import DATE, TIME, TIMESTAMP
 
 class QueuedParty(db.Model):
     __tablename__ = "queued_parties"
@@ -16,7 +15,9 @@ class QueuedParty(db.Model):
     queued_index = db.Column(SMALLINT, nullable=False, default=0)
 
     slot_id = db.Column(SMALLINT, db.ForeignKey("slots.id"), nullable=False)
-    slot_time = db.Column(TIMESTAMP, db.ForeignKey("slots.time"), nullable=False)
+    slot_time = db.Column(TIME, db.ForeignKey("slots.time"), nullable=False)
+    slot_date = db.Column(DATE, db.ForeignKey("slots.date"), nullable=False)
+    slot = db.relationship("Slot", backref=db.backref("queued_parties", lazy=True))
 
     def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : TIMESTAMP, index : int, slot_id : int, slot_time : TIMESTAMP):
         self.holder_name = hName
@@ -45,11 +46,13 @@ class Slot(db.Model):
 
     id = db.Column(INTEGER, primary_key=True)
 
-    time = db.Column(TIMESTAMP, nullable=False)
+    time = db.Column(TIME, nullable=False)
+    date = db.Column(DATE, nullable=False)
     room = db.Column(SMALLINT, nullable=False)
     booked = db.Column(BOOLEAN, nullable=False, default=False)
 
     queue_length = db.Column(SMALLINT, nullable=False, default=0)
+    queued_parties = db.relationship("QueuedParty", backref="slot", lazy=True)
 
     holder = db.Column(INTEGER, db.ForeignKey("queued_parties.holder_email"), nullable=False)
 
