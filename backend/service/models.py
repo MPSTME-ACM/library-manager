@@ -20,9 +20,9 @@ class QueuedParty(db.Model):
     slot_time = db.Column(TIME, nullable=False)
     slot_date = db.Column(DATE, nullable=False)
 
-    passkey = db.Column(SMALLINT, nullable = False)
+    passkey = db.Column(VARCHAR(4), nullable = False)
 
-    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : dt.datetime, index : int, room_id : int, slot_id : int, slot_time : dt.time, slot_date : dt.date, passkey : int):
+    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : dt.datetime, index : int, room_id : int, slot_id : int, slot_time : dt.time, slot_date : dt.date, passkey : str):
         self.holder_name=hName
         self.holder_phone=hPhone
         self.holder_email=hMail
