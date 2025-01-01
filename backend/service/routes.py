@@ -1,6 +1,6 @@
 from service import app, db, redisManager
 from service.models import Slot, QueuedParty
-from backend.service.auxillary_modules.auxillary import enforce_JSON, validateDetails
+from service.auxillary_modules.auxillary import enforce_JSON, validateDetails
 
 from flask import request, Response, jsonify, abort
 from werkzeug.exceptions import BadRequest, Conflict, NotFound, InternalServerError, HTTPException
@@ -25,8 +25,8 @@ def err_generic(e : Exception | HTTPException | SQLAlchemyError) -> Response:
 
 
 ### ENDPOINTS ###
-@app.route("/rooms/<int:id>/slots", methods=["GET"])
-def getRoomDetails(id) -> Response:
+@app.route("/rooms/<int:room_id>/slots", methods=["GET"])
+def getRoomDetails(room_id) -> Response:
     req_date = request.args.get("date")
     req_time = request.args.get("time")
 
@@ -37,7 +37,7 @@ def getRoomDetails(id) -> Response:
     except Exception as e:
         print("Failed cache lookup")
 
-    clauses = [Slot.room==id]
+    clauses = [Slot.room==room_id]
     currentDate = datetime.date(datetime.now())
 
     if not (req_date or req_time):
@@ -107,9 +107,9 @@ def getBookings(identity : str) -> Response:
         print("Invalid objects fetched, check Slot.__CustomDict__() and Slot schema")
         raise InternalServerError()
 
-@app.route("/book/<int:id>", methods=["POST"])
+@app.route("/book/<int:room_id>", methods=["POST"])
 @enforce_JSON
-def bookRoom(id) -> Response:
+def bookRoom(room_id) -> Response:
     bookingData = request.get_json(force=True, silent=False)
 
     try:
@@ -141,7 +141,7 @@ def bookRoom(id) -> Response:
     try:
         with db.session.begin():
             slot : Slot | None = db.session.execute(select(Slot)
-                                            .where(Slot.room == id, Slot.booked == False, Slot.date == booking_date, Slot.time == booking_time)
+                                            .where(Slot.room == room_id, Slot.booked == False, Slot.date == booking_date, Slot.time == booking_time)
                                             .with_for_update(nowait=True)
                                             ).scalar_one_or_none()
 
@@ -226,6 +226,7 @@ def enqueueToRoom() -> Response:
         app.logger.error(f"Error occurred while booking slot: {e}")
         abort(500)
 
-@app.route("/cancel/<int:id>", methods=["DELETE"])
-def cancelBooking() -> Response:
+@app.route("/cancel/<int:slot_id>", methods=["DELETE"])
+@enforce_JSON
+def cancelBooking(slot_id) -> Response:
     ...
