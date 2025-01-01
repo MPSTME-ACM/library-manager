@@ -1,6 +1,6 @@
 from service import app, db, redisManager
 from service.models import Slot, QueuedParty
-from backend.service.auxillary_modules.auxillary import enforce_JSON
+from backend.service.auxillary_modules.auxillary import enforce_JSON, validateDetails
 
 from flask import request, Response, jsonify, abort
 from werkzeug.exceptions import BadRequest, Conflict, NotFound, InternalServerError, HTTPException
@@ -119,6 +119,9 @@ def bookRoom(id) -> Response:
         holder_email = bookingData["email"]
         holder_name = bookingData["name"]
 
+        if not validateDetails(holder_num, holder_email):
+            raise BadRequest("Invalid formaat for holder details")
+
         booking_time = int(booking_time)
         if booking_time < app.config["OPENING_TIME"] or booking_time > app.config["CLOSING_TIME"]:
             raise ValueError()
@@ -173,6 +176,9 @@ def enqueueToRoom() -> Response:
         holder_num = bookingData["number"]
         holder_email = bookingData["email"]
         holder_name = bookingData["name"]
+
+        if not validateDetails(holder_num, holder_email):
+            raise BadRequest("Invalid formaat for holder details")
 
         booking_time = int(booking_time)
         if booking_time < app.config["OPENING_TIME"] or booking_time > app.config["CLOSING_TIME"]:
