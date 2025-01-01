@@ -168,6 +168,7 @@ def bookRoom(room_id) -> Response:
         abort(500)
 
 @app.route("/enqueue/<int:id>", methods=["POST"])
+@enforce_JSON
 def enqueueToRoom() -> Response:
     bookingData = request.get_json(force=True, silent=False)
 
