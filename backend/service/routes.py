@@ -118,8 +118,9 @@ def bookRoom(room_id) -> Response:
         holder_num = bookingData["number"]
         holder_email = bookingData["email"]
         holder_name = bookingData["name"]
+        holder_passkey = bookingData["passkey"]
 
-        if not validateDetails(holder_num, holder_email):
+        if not validateDetails(holder_num, holder_email, holder_passkey):
             raise BadRequest("Invalid formaat for holder details")
 
         booking_time = int(booking_time)
@@ -176,8 +177,9 @@ def enqueueToRoom() -> Response:
         holder_num = bookingData["number"]
         holder_email = bookingData["email"]
         holder_name = bookingData["name"]
+        holder_passkey = bookingData["passkey"]
 
-        if not validateDetails(holder_num, holder_email):
+        if not validateDetails(holder_num, holder_email, holder_passkey):
             raise BadRequest("Invalid formaat for holder details")
 
         booking_time = int(booking_time)

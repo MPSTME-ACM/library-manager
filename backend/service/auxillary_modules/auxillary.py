@@ -6,11 +6,13 @@ from werkzeug.exceptions import BadRequest
 import re
 
 # Helper Methods
-def validateDetails(number : str, email : str, emailRegex : str ="^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", **kwargs) -> bool:
+def validateDetails(number : str, email : str, passkey : str, emailRegex : str ="^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$") -> bool:
     try:
         if not (len(number) == 10 and number.isnumeric()):
             return False
         if not re.fullmatch(emailRegex, email):
+            return False
+        if not (0 <= int(passkey) <= 9999):
             return False
     except:
         return False
