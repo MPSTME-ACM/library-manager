@@ -22,7 +22,7 @@ class QueuedParty(db.Model):
 
     passkey = db.Column(SMALLINT, nullable = False)
 
-    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : dt.datetime, index : int, room_id : int, slot_id : int, slot_time : dt.time, slot_date : dt.date):
+    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : dt.datetime, index : int, room_id : int, slot_id : int, slot_time : dt.time, slot_date : dt.date, passkey : int):
         self.holder_name=hName
         self.holder_phone=hPhone
         self.holder_email=hMail
@@ -32,9 +32,10 @@ class QueuedParty(db.Model):
         self.slot_id=slot_id
         self.slot_time=slot_time
         self.slot_date=slot_date
+        self.passkey=passkey
 
     def __repr__(self) -> str:
-        return f"<QueuedParty({self.holder_name}, {self.holder_phone}, {self.holder_email}, {self.time_booked}, {self.queued_index}, {self.slot_id}, {self.slot_time}) (DB ID: f{self.id}) object at f{id(self)}>"
+        return f"<QueuedParty({self.holder_name}, {self.holder_phone}, {self.holder_email}, {self.time_booked}, {self.queued_index}, {self.slot_id}, {self.slot_time}, {self.slot_date}) (DB ID: f{self.id}) object at f{id(self)}>"
     
     def __CustomDict__(self) -> dict:
         '''Return (JSON serializable) dict'''
@@ -67,6 +68,9 @@ class Slot(db.Model):
         self.booked = booked
         self.queue_length = qLen
         self.holder = holder
+
+    def __repr__(self) -> str:
+        return f"<Slot({self.time_slot, self.date, self.booked, self.queue_length, self.holder})> (DB ID: {self.id}) at {id(self)}"
 
     def __CustomDict__(self) -> dict:
         '''Return (JSON serializable) dict'''
