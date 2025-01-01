@@ -155,7 +155,7 @@ def bookRoom(room_id) -> Response:
                                        queue_length=1,
                                        holder=holder_email))
 
-            newParty = QueuedParty(holder_name, holder_num, holder_email, datetime.now(), 0, slot.room, slot.id, slot.time, slot.date)
+            newParty = QueuedParty(holder_name, holder_num, holder_email, datetime.now(), 0, slot.room, slot.id, slot.time, slot.date, holder_passkey)
             db.session.add(newParty)
 
             db.session.commit()
@@ -216,7 +216,7 @@ def enqueueToRoom() -> Response:
                             .values(queue_length=slot.queue_length+1,
                                     holder=holder_email))
 
-            newParty = QueuedParty(holder_name, holder_num, holder_email, datetime.now(), slot.queue_length+1, slot.room, slot.id, slot.time, slot.date)
+            newParty = QueuedParty(holder_name, holder_num, holder_email, datetime.now(), slot.queue_length+1, slot.room, slot.id, slot.time, slot.date, holder_passkey)
             db.session.add(newParty)
 
             db.session.commit()
