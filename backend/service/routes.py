@@ -88,6 +88,30 @@ def getRoomDetails(id) -> Response:
         print("Invalid objects fetched, check Slot.__CustomDict__() and Slot schema")
         raise InternalServerError() #NOTE: Generic decriptions are handled by @app.errorhandler(InternalServerError), no need to set description manually
 
+@app.route("/bookings/<string:identity>", methods=["GET"])
+def getBookings(identity : str) -> Response:
+    if identity.isnumeric() and len(identity) == 10:
+        whereClause = QueuedParty.holder_phone == identity
+    elif "@" in identity:
+        whereClause = QueuedParty.holder_email == identity
+    else:
+        raise BadRequest(f"Parameter {identity} must be either a 10-digit phone number or an email address")
+    
+    try:
+        _results : list[QueuedParty]= db.session.execute(select(QueuedParty).where(whereClause)).scalars().all()
+        if not _results:
+            raise NotFound(f"No bookings found with identity {identity}. If you believe that this is a mistake, please contact support")
+
+        pyReadableResult = [result.__CustomDict__() for result in _results]
+        redisManager.safe_execute_command("SETEX", False, f"bkng:{identity}", 300, orjson.dumps(pyReadableResult))
+        return jsonify(pyReadableResult), 200
+    
+    except SQLAlchemyError as e:
+        raise InternalServerError("There seems to be an issue with our database service, please try again later :(")
+    except AttributeError:
+        print("Invalid objects fetched, check Slot.__CustomDict__() and Slot schema")
+        raise InternalServerError()
+
 @app.route("/book/<int:id>", methods=["POST"])
 @enforce_JSON
 def bookRoom(id) -> Response:
