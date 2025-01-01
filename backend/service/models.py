@@ -1,7 +1,7 @@
 from service import db
 from sqlalchemy.types import INTEGER, SMALLINT, VARCHAR, BOOLEAN
 from sqlalchemy.dialects.postgresql import DATE, TIME, TIMESTAMP
-from datetime import datetime, date, time
+import datetime as dt
 
 class QueuedParty(db.Model):
     __tablename__ = "queued_parties"
@@ -20,7 +20,7 @@ class QueuedParty(db.Model):
     slot_time = db.Column(TIME, db.ForeignKey("slots.time"), nullable=False)
     slot_date = db.Column(DATE, db.ForeignKey("slots.date"), nullable=False)
 
-    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : datetime, index : int, room_id : int, slot_id : int, slot_time : time, slot_date : date):
+    def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : dt.datetime, index : int, room_id : int, slot_id : int, slot_time : dt.time, slot_date : dt.date):
         self.holder_name=hName
         self.holder_phone=hPhone
         self.holder_email=hMail
@@ -39,10 +39,11 @@ class QueuedParty(db.Model):
         return {"name" : self.holder_name,
                 "email" : self.holder_email,
                 "phone" : self.holder_phone,
-                "time_booked" : self.time_booked.strftime("%Y-%m-%d %H:%M:%S"),
+                "time_booked" : self.time_booked.strftime("%Y-%m-%d %H:%M"),
                 "queue_index" : self.queued_index,
-                "slot_id" : self.slot_id,
-                "slot_time" : self.slot_time}
+                "room_id" : self.room_id,
+                "slot_date" : self.slot_date.strftime("%d%m%y"),
+                "slot_time" : self.slot_time.strftime("%H%m")}
     
 class Slot(db.Model):
     __tablename__ = "slots"
@@ -58,15 +59,17 @@ class Slot(db.Model):
 
     holder = db.Column(INTEGER, nullable=True)
 
-    def __init__(self, t : time, booked : bool, qLen : int, holder : int):
-        self.time_slot = time
+    def __init__(self, time : dt.time, date : dt.date, booked : bool, qLen : int, holder : int):
+        self.time_slot = time,
+        self.date = date,
         self.booked = booked
         self.queue_length = qLen
         self.holder = holder
 
     def __CustomDict__(self) -> dict:
         '''Return (JSON serializable) dict'''
-        return {"time" : self.time.strftime("%Y-%m-%d %H:%M:%S"),
+        return {"time" : self.time_slot.strftime("%H:%M"),
+                "date" : self.date.strftime("%d%m%Y"),
                 "booked" : self.booked,
                 "qLen" : self.queue_length,
                 "holder" : self.holder}
