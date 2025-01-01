@@ -3,6 +3,18 @@ from functools import wraps
 from traceback import format_exc
 from flask import request
 from werkzeug.exceptions import BadRequest
+import re
+
+# Helper Methods
+def validateDetails(number : str, email : str, emailRegex : str ="^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", **kwargs) -> bool:
+    try:
+        if not (len(number) == 10 and number.isnumeric()):
+            return False
+        if not re.fullmatch(emailRegex, email):
+            return False
+    except:
+        return False
+        
 
 ### Decorators ###
 def enforce_JSON(endpoint):
@@ -20,3 +32,4 @@ def silent_exec(method):
             return method(*args, **kwargs)
         except Exception as e:
             print(f"Silencing exception, details: {e}\n.{format_exc()}")
+    return decorated
