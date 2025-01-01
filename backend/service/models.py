@@ -15,10 +15,11 @@ class QueuedParty(db.Model):
     time_booked = db.Column(TIMESTAMP, nullable=False)
     queued_index = db.Column(SMALLINT, nullable=False, default=0)
 
-    room_id = db.Column(SMALLINT, db.ForeignKey("slots.room"), nullable=False)
+    room_id = db.Column(SMALLINT, nullable=False)
     slot_id = db.Column(INTEGER, db.ForeignKey("slots.id"), nullable=False)
-    slot_time = db.Column(TIME, db.ForeignKey("slots.time"), nullable=False)
-    slot_date = db.Column(DATE, db.ForeignKey("slots.date"), nullable=False)
+    slot_time = db.Column(TIME, nullable=False)
+    slot_date = db.Column(DATE, nullable=False)
+
 
     def __init__(self, hName : str, hPhone : str | int, hMail : str, tBooked : dt.datetime, index : int, room_id : int, slot_id : int, slot_time : dt.time, slot_date : dt.date):
         self.holder_name=hName

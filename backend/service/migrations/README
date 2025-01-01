@@ -1,1 +1,2 @@
 Single-database configuration for Flask.
+Hehe no SQLite = no shitty alembic migrations
