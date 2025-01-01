@@ -3,9 +3,9 @@ from service.models import Slot, QueuedParty
 from service.auxillary_modules.auxillary import enforce_JSON, validateDetails
 
 from flask import request, Response, jsonify, abort
-from werkzeug.exceptions import BadRequest, Conflict, NotFound, InternalServerError, HTTPException
+from werkzeug.exceptions import BadRequest, Unauthorized, NotFound, InternalServerError, HTTPException
 
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update, delete, and_
 from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import datetime, timedelta, time
@@ -231,4 +231,67 @@ def enqueueToRoom() -> Response:
 @app.route("/cancel/<int:slot_id>", methods=["DELETE"])
 @enforce_JSON
 def cancelBooking(slot_id) -> Response:
-    ...
+    details : dict = request.get_json(force=True, silent=False)
+
+    identity : str = details.get("identity")
+    passkey : str = details.get("passkey")
+
+    if not(identity and passkey):
+        raise BadRequest(f"In order to delete reservation for slot {slot_id}, identity (either reservation holder's email address or phone number) and passkey are required")
+
+    if not (passkey.isnumeric() and 0 <= int(passkey) <= 9999):
+        raise BadRequest("Invalid passkey")
+    
+    holderClauses = [QueuedParty.slot_id == slot_id]
+    
+    if identity.isnumeric():
+        holderClauses.append(QueuedParty.holder_phone == identity)
+    else:
+        holderClauses.append(QueuedParty.holder_email == identity)
+
+    try:
+        with db.session.begin():
+            slot : Slot = db.session.execute(select(Slot)
+                                             .where(Slot.id == slot_id)
+                                             .with_for_update(nowait=True)).scalar_one_or_none() # Lock that mf
+            if not slot:
+                raise BadRequest("Slot does not exist")
+
+            party : QueuedParty = db.session.execute(select(QueuedParty)
+                                                     .where(and_(*holderClauses))
+                                                     .with_for_update(nowait=True)).scalar_one_or_none() # Lock this mf too
+
+            if not party:
+                raise NotFound(f"No reservation exists for slot {slot_id} under {identity}")
+            
+            if party.passkey != passkey:
+                app.logger.warning(f"Unauthorized attempt to cancel slot {slot_id} with invalid passkey")
+                raise Unauthorized("Invalid passkey")
+            
+            if slot.queue_length > 1:
+                queue : list[QueuedParty] = db.session.execute(select(QueuedParty)
+                                                               .where(QueuedParty.slot_id == slot_id)).scalars().all()
+                queue.sort(key = QueuedParty.queued_index)
+                queue = queue[queue.index(party)+1:]
+
+                for i in queue:
+                    i.queued_index -= 1
+
+                slot.holder = queue[0].holder_name
+                #TODO: Add Logic to send email to wheover is up next
+
+            else:
+                slot.booked = False
+                slot.holder = None
+
+            slot.queue_length -= 1
+
+            db.session.delete(party)
+            # God bless ORMs
+
+            db.session.commit()
+            db.session.close()
+
+    except SQLAlchemyError as e:
+        app.logger.error(f"Error occurred while canceling booking for slot {slot_id}: {e}")
+        raise InternalServerError()
