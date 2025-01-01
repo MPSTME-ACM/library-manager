@@ -3,7 +3,7 @@ from service.models import Slot, QueuedParty
 from backend.service.auxillary_modules.auxillary import enforce_JSON
 
 from flask import request, Response, jsonify, abort
-from werkzeug.exceptions import BadRequest, Conflict, NotFound, InternalServerError
+from werkzeug.exceptions import BadRequest, Conflict, NotFound, InternalServerError, HTTPException
 
 from sqlalchemy import select, update, and_
 from sqlalchemy.exc import SQLAlchemyError
@@ -12,22 +12,17 @@ from datetime import datetime, timedelta, time
 import orjson
 
 ### ERROR HANDLERS ###
-@app.errorhandler(BadRequest)
-def err_badReq(e : BadRequest):
-    body = {"message" : e.description}
-    if hasattr(e, "additional_info"):
-        body["info"] = e.additional_info
-    return jsonify(body), 400
-
-@app.errorhandler(InternalServerError)
-@app.errorhandler(SQLAlchemyError)
 @app.errorhandler(Exception)
-def err_generic(e : Exception):
-    body = {"message" : e.description}
+def err_generic(e : Exception | HTTPException | SQLAlchemyError) -> Response:
+    # app.logger.error("An error occurred: %s", str(e), exc_info=True)
+    body = {"message" : getattr(e, "description", "There seems to be an error at our server, We apologise :3")}
     if hasattr(e, "additional_info"):
         body["info"] = e.additional_info
-    return jsonify(body), 500
-    
+    response = jsonify(body)
+    response.headers["Content-Type"] = "application/json"
+
+    return response, getattr(e, "code", 500)
+
 
 ### ENDPOINTS ###
 @app.route("/rooms/<int:id>/slots", methods=["GET"])
