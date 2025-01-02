@@ -14,6 +14,7 @@ def validateDetails(number : str, email : str, passkey : str, emailRegex : str =
             return False
         if not (0 <= int(passkey) <= 9999):
             return False
+        return True
     except:
         return False
         
