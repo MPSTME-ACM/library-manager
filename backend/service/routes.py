@@ -2,7 +2,7 @@ from service import app, db, redisManager
 from service.models import Slot, QueuedParty
 from service.auxillary_modules.auxillary import enforce_JSON, validateDetails
 
-from flask import request, Response, jsonify, abort
+from flask import request, Response, jsonify, abort, url_for
 from werkzeug.exceptions import BadRequest, Unauthorized, NotFound, InternalServerError, HTTPException
 
 from sqlalchemy import select, update, delete, and_
@@ -182,9 +182,9 @@ def bookRoom(room_id) -> Response:
         app.logger.error(f"Error occurred while booking slot: {e}")
         abort(500)
 
-@app.route("/enqueue/<int:id>", methods=["POST"])
+@app.route("/enqueue/<int:room_id>", methods=["POST"])
 @enforce_JSON
-def enqueueToRoom() -> Response:
+def enqueueToRoom(room_id) -> Response:
     bookingData = request.get_json(force=True, silent=False)
 
     try:
@@ -215,30 +215,45 @@ def enqueueToRoom() -> Response:
         raise BadRequest(f"Invalid data sent to POST {request.root_path}")
     
     try:
+        temp = {}
         with db.session.begin():
             slot : Slot | None = db.session.execute(select(Slot)
-                                            .where(Slot.room == id, Slot.booked == True, Slot.date == booking_date, Slot.time == booking_time)
+                                            .where(Slot.room == room_id, Slot.date == booking_date, Slot.time_slot == booking_time)
                                             .with_for_update(nowait=True)
                                             ).scalar_one_or_none()
 
             if not slot:
                 return jsonify("Slot Unavailable"), 404
-            
+            if not slot.booked:
+                return jsonify({"redir" : True,
+                                "redir_endpoint" : url_for("bookRoom", room_id=room_id),
+                                "message" : "This room slot does not have any reservations. Would you like to reserve it first?"}), 409
             if slot.queue_length >= app.config["MAX_QLEN"]:
-                return jsonify(f"Queue length exceeds maximum allowed parties, which is {app.config['MAX_QLEN']}"), 422
+                return jsonify({"redir" : False,
+                                "redir_endpoint" : None,
+                                "message" : f"Queue length exceeds maximum allowed parties, which is {app.config['MAX_QLEN']}"}), 409
 
             db.session.execute(update(Slot)
                             .where(Slot.id == slot.id)
                             .values(queue_length=slot.queue_length+1,
                                     holder=holder_email))
 
-            newParty = QueuedParty(holder_name, holder_num, holder_email, datetime.now(), slot.queue_length+1, slot.room, slot.id, slot.time, slot.date, holder_passkey)
+            newParty = QueuedParty(hName=holder_name,
+                                   hMail=holder_email,
+                                   hPhone=holder_num,
+                                   room_id=room_id,
+                                   tBooked=datetime.now(),
+                                   index=slot.queue_length+1,
+                                   slot_id=slot.id,
+                                   slot_time=slot.time_slot,
+                                   slot_date=slot.date,
+                                   passkey=holder_passkey)
             db.session.add(newParty)
 
+            temp.update(slot.__CustomDict__())
             db.session.commit()
-            db.session.close()
 
-            return jsonify({"room_id" : slot.room, "slot_time" : slot.time_slot, "slot_date" : slot.date, "queue_index" : slot.queue_length + 1}), 201
+        return jsonify(temp), 201
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Error occurred while booking slot: {e}")
