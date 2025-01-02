@@ -9,7 +9,7 @@ class QueuedParty(db.Model):
     id = db.Column(INTEGER, primary_key=True)
 
     holder_name = db.Column(VARCHAR(64), nullable=False)
-    holder_phone = db.Column(SMALLINT, nullable=False, index=True)
+    holder_phone = db.Column(VARCHAR(10), nullable=False, index=True)
     holder_email = db.Column(VARCHAR(64), nullable=False, index=True)
 
     time_booked = db.Column(TIMESTAMP, nullable=False)
@@ -60,9 +60,9 @@ class Slot(db.Model):
 
     queue_length = db.Column(SMALLINT, nullable=False, default=0)
 
-    holder = db.Column(INTEGER, nullable=True)
+    holder = db.Column(VARCHAR(64), nullable=True)
 
-    def __init__(self, time : dt.time, date : dt.date, booked : bool, qLen : int, holder : int):
+    def __init__(self, time : dt.time, date : dt.date, booked : bool, qLen : int, holder : str):
         self.time_slot = time,
         self.date = date,
         self.booked = booked
