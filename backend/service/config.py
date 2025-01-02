@@ -33,7 +33,7 @@ class AppConfig:
         if REQUIRE_REDIS and not (REDIS_HOST and REDIS_PORT):
             raise ValueError("REQUIRE_REDIS set to True, but mandatory args not found")
 
-        OPENIING_TIME = int(os.environ["LIB_OPENING_TIME"])
+        OPENING_TIME = int(os.environ["LIB_OPENING_TIME"])
         CLOSING_TIME = int(os.environ["LIB_CLOSING_TIME"])
         FUTURE_WINDOW_SIZE = int(os.environ["LIB_FUTURE_WINDOW_SIZE"])
         MAX_QLEN = int(os.environ["LIB_MAX_QUEUE_SIZE"])
