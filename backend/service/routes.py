@@ -10,11 +10,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import datetime, timedelta, time
 import orjson
+from traceback import format_exc
 
 ### ERROR HANDLERS ###
 @app.errorhandler(Exception)
 def err_generic(e : Exception | HTTPException | SQLAlchemyError) -> Response:
     # app.logger.error("An error occurred: %s", str(e), exc_info=True)
+    print(format_exc())
     body = {"message" : getattr(e, "description", "There seems to be an error at our server, We apologise :3")}
     if hasattr(e, "additional_info"):
         body["info"] = e.additional_info
@@ -31,7 +33,7 @@ def getRoomDetails(room_id) -> Response:
     req_time = request.args.get("time")
 
     try:
-        _result : bytes | None = redisManager.safe_execute_command("GET", True, f"{id}:{req_date}:{req_time}")
+        _result : bytes | None = redisManager.safe_execute_command("GET", True, f"{room_id}:{req_date}:{req_time}")
         if _result:
             return jsonify(orjson.loads(_result)), 200
     except Exception as e:
@@ -41,7 +43,7 @@ def getRoomDetails(room_id) -> Response:
     currentDate = datetime.date(datetime.now())
 
     if not (req_date or req_time):
-        clauses.append(Slot.date >= currentDate & Slot.date < currentDate + timedelta(days=app.config["FUTURE_WINDOW_SIZE"]))
+        clauses.append((Slot.date >= currentDate) & (Slot.date < (currentDate + timedelta(days=app.config["FUTURE_WINDOW_SIZE"]))))
 
     if req_time:
         try:
@@ -51,7 +53,7 @@ def getRoomDetails(room_id) -> Response:
             
             req_time = time(req_time // 100, 0)
 
-            clauses.append(Slot.time == req_time)
+            clauses.append(Slot.time_slot == req_time)
 
         except ValueError:
             raise BadRequest(f"Time specified must be between {app.config['OPENING_TIME']} to {app.config['CLOSING_TIME']}, and be an integer")
@@ -68,6 +70,7 @@ def getRoomDetails(room_id) -> Response:
             e = BadRequest("Date must be formatted as `ddmmyy`, no alphabets or special characters allowed")
             e.__setattr__("additional_info", f"For example, today's date would be formatted as: {currentDate.strftime('%d%m%y')}")
             raise e
+    print("Reached")
     
     try:
         results = db.session.execute(select(Slot).where(and_(*clauses))).scalars().all()
@@ -75,7 +78,7 @@ def getRoomDetails(room_id) -> Response:
             return jsonify([]), 404
         
         pyReadableResult = [result.__CustomDict__() for result in results]
-        redisManager.safe_execute_command("SETEX", True, f"{id}:{req_date}:{req_time}", 300, orjson.dumps(pyReadableResult))
+        redisManager.safe_execute_command("SETEX", True, f"{room_id}:{req_date}:{req_time}", 300, orjson.dumps(pyReadableResult))
         return jsonify(pyReadableResult), 200
     except SQLAlchemyError as e:
         raise InternalServerError("There seems to be an issue with our database service, please try again later :(")
