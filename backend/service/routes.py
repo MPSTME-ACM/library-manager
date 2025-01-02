@@ -70,7 +70,6 @@ def getRoomDetails(room_id) -> Response:
             e = BadRequest("Date must be formatted as `ddmmyy`, no alphabets or special characters allowed")
             e.__setattr__("additional_info", f"For example, today's date would be formatted as: {currentDate.strftime('%d%m%y')}")
             raise e
-    print("Reached")
     
     try:
         results = db.session.execute(select(Slot).where(and_(*clauses))).scalars().all()
@@ -143,10 +142,14 @@ def bookRoom(room_id) -> Response:
         raise BadRequest(f"Invalid data sent to POST {request.root_path}")
     
     try:
+        temp = {}
         with db.session.begin():
             slot : Slot | None = db.session.execute(select(Slot)
-                                            .where(Slot.room == room_id, Slot.booked == False, Slot.date == booking_date, Slot.time == booking_time)
-                                            .with_for_update(nowait=True)
+                                            .where(Slot.room == room_id,
+                                                   Slot.booked == False,
+                                                   Slot.date == booking_date,
+                                                   Slot.time_slot == booking_time)
+                                            .with_for_update(nowait=True)   # Hehe this slot is ours now >:D
                                             ).scalar_one_or_none()
 
             if not slot:
@@ -158,13 +161,22 @@ def bookRoom(room_id) -> Response:
                                        queue_length=1,
                                        holder=holder_email))
 
-            newParty = QueuedParty(holder_name, holder_num, holder_email, datetime.now(), 0, slot.room, slot.id, slot.time, slot.date, holder_passkey)
+            newParty = QueuedParty(hName=holder_name,
+                                   hPhone=holder_num,
+                                   hMail=holder_email,
+                                   tBooked=datetime.now(),
+                                   index=0,
+                                   room_id=room_id,
+                                   slot_id=slot.id,
+                                   slot_date=slot.date,
+                                   slot_time=slot.time_slot,
+                                   passkey=holder_passkey)
             db.session.add(newParty)
-
+            # Using the ORM and the SQL interface in the same scope needs should be haram I am so sorry
+            temp.update(slot.__CustomDict__())
             db.session.commit()
-            db.session.close()
 
-            return jsonify({"room_id" : slot.room, "slot_time" : slot.time_slot, "slot_date" : slot.date}), 201
+        return jsonify(temp), 201   
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Error occurred while booking slot: {e}")
