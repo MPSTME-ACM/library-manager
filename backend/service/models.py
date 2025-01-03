@@ -13,7 +13,7 @@ class QueuedParty(db.Model):
     holder_email = db.Column(VARCHAR(64), nullable=False, index=True)
 
     time_booked = db.Column(TIMESTAMP, nullable=False)
-    queued_index = db.Column(SMALLINT, nullable=False, default=0)
+    queue_position = db.Column(SMALLINT, nullable=False, default=0)
 
     room_id = db.Column(SMALLINT, nullable=False)
     slot_id = db.Column(INTEGER, db.ForeignKey("slots.id"), nullable=False)
