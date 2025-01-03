@@ -1,6 +1,8 @@
-import os
+import os, sys
 from dotenv import load_dotenv
-import redis
+from auxillary_modules.redismanager import RedisManager
+
+from typing import Any
 
 CWD = os.path.dirname(__file__)
 
@@ -44,5 +46,57 @@ class AppConfig:
     except ValueError as e:
         print(f"ERROR: Invalid configuration in {os.path.dirname(CWD), '.env'}. Original Error: {e}")
         raise e
+    
+class CacheManager(RedisManager):
+    '''This class seems so useless but hey less network calls at least'''
+    def __init__(self, maxSize : int, maxKeySize: int, maxValSize : int, host : str, port : int, **options):
+        self._nanoCache : dict = {}
+        self.maxSize = maxSize
+        self.maxKeySize = maxKeySize
+        self.maxValSize = maxValSize
+        super().__init__(host, port, **options)
+
+    def getSpaceData(self) -> str:
+        return f"Mmeory occupied: {sys.getsizeof(self._nanoCache)}\nEntries{len(self._nanoCache)}"
+    
+    def addToCache(self, key : str, value : Any) -> str | None:
+        if sys.getsizeof(self._nanoCache) > self.maxSize:
+            print("Permissible memory exhausted, insertion denied")
+            return
+        
+        if sys.getsizeof(value) > self.maxValSize:
+            raise ValueError("Value exceeds maximum permissible size")
+        
+        if sys.getsizeof(key) > self.maxKeySize:
+            raise ValueError("Key exceeds maximum permissible size")
+        
+        self._nanoCache[key] = value
+        if sys.getsizeof(self._nanoCache) > self.maxSize:
+            raise MemoryError("Permissible memory exhausted, future insertions will now be denied")
+    
+    def popFromCache(self, key) -> Any:
+        return self._nanoCache.pop(key, None)
+
+    def clearCache(self) -> None:
+        self._nanoCache = {}
+
+    def checkExistence(self, key) -> bool:
+        # return self._nanoCache.get(key)
+        return key in self._nanoCache          # peak example of Python "programming"
+            
+    def updateConstraints(self, **kwargs) -> None:
+        '''Update memory contraints of _nanoCache.
+        
+        params: Same as constructor, just without the Redis signature and additional kwargs
+        '''
+
+        self.maxSize = kwargs.get("maxSize", self.maxSize)
+        self.maxKeySize = kwargs.get("maxKeySize", self.maxKeySize)
+        self.maxValSize = kwargs.get("maxValSize", self.maxValSize)
+
+
+    def persistToFile(self) -> None:
+        ...
+        
     
 configObj = AppConfig()
