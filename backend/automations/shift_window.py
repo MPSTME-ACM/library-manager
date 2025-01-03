@@ -49,23 +49,22 @@ purge_date = (datetime.today() - timedelta(days=1)).date()
 try:
     conn =  pg.connect(**DB_CONFIG_KWARGS)
     with conn.cursor() as db_cursor:
-        for room_id in ROOMS:
-            current_time = opening_time
-            while current_time <= closing_time:
-                db_cursor.execute("INSERT INTO SLOTS (room, date, time, booked, queue_length) VALUES (%s, %s, %s, %s, %s)", (room_id, new_date, current_time, False, 0,))
-                current_time += timedelta(hours=1)
-
-        conn.commit()
-
-        db_cursor.execute("DELETE FROM SLOTS WHERE date < %s", (purge_date,))
-        conn.commit()
-        
+        current_date = datetime.today().date()
+        while current_date < new_date:
+            for room_id in ROOMS:
+                current_time = opening_time
+                while current_time <= closing_time:         # Oh lord forgive me for nesting three loops like this
+                    db_cursor.execute("INSERT INTO SLOTS (room, date, time_slot, booked, queue_length) VALUES (%s, %s, %s, %s, %s)", (room_id, current_date, current_time, False, 0,))
+                    current_time += timedelta(hours=1)
+            current_date += timedelta(days=1)
+        conn.commit()     
     conn.close()
 
-except:
+except Exception as e:
     if conn:
         conn.rollback()
     print("ERROR: SCRIPT FAILED")
+    print(format_exc())
 finally:
     if conn:
         conn.close()
