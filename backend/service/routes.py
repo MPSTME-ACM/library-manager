@@ -3,9 +3,9 @@ from service.models import Slot, QueuedParty
 from service.auxillary_modules.auxillary import enforce_JSON, validateDetails
 
 from flask import request, Response, jsonify, abort, url_for
-from werkzeug.exceptions import BadRequest, Unauthorized, NotFound, InternalServerError, HTTPException
+from werkzeug.exceptions import BadRequest, Unauthorized, NotFound, InternalServerError, HTTPException, Conflict
 
-from sqlalchemy import select, update, delete, and_
+from sqlalchemy import select, update, delete, and_, or_
 from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import datetime, timedelta, time
@@ -141,40 +141,52 @@ def bookRoom(room_id) -> Response:
     except ValueError as e:
         raise BadRequest(f"Invalid data sent to POST {request.root_path}")
     
+    # Rule 1: If a person already has a room reserved, they can't enqueue/book anywhere else
+    currentHolders : list[QueuedParty] = db.session.execute(select(QueuedParty).where(and_
+                                                                                      (or_(QueuedParty.holder_email == holder_email,
+                                                                                           QueuedParty.holder_phone == holder_num)
+                                                                                           ),
+                                                                                           QueuedParty.slot_time == booking_time,
+                                                                                            QueuedParty.slot_date == booking_date,
+                                                                                            QueuedParty.queued_index == 0,
+                                                                                            QueuedParty.room_id == room_id)).scalars().all()
+    if currentHolders:
+        conflict = Conflict("A reserved room already exists under the provided email address/phone number")
+        conflict.__setattr__("additional_info", "Since there is already a room booked under these credentials, enqueuing to or booking another room is NOT allowed.")
+        raise conflict
+
     try:
         temp = {}
-        with db.session.begin():
-            slot : Slot | None = db.session.execute(select(Slot)
-                                            .where(Slot.room == room_id,
-                                                   Slot.booked == False,
-                                                   Slot.date == booking_date,
-                                                   Slot.time_slot == booking_time)
-                                            .with_for_update(nowait=True)   # Hehe this slot is ours now >:D
-                                            ).scalar_one_or_none()
+        slot : Slot | None = db.session.execute(select(Slot)
+                                        .where(Slot.room == room_id,
+                                                Slot.booked == False,
+                                                Slot.date == booking_date,
+                                                Slot.time_slot == booking_time)
+                                        .with_for_update(nowait=True)   # Hehe this slot is ours now >:D
+                                        ).scalar_one_or_none()
 
-            if not slot:
-                return jsonify("Slot Unavailable"), 404
+        if not slot:
+            return jsonify("Slot Unavailable"), 404
+        db.session.execute(update(Slot)
+                            .where(Slot.id == slot.id)
+                            .values(booked=True, 
+                                    queue_length=1,
+                                    holder=holder_email))
 
-            db.session.execute(update(Slot)
-                               .where(Slot.id == slot.id)
-                               .values(booked=True, 
-                                       queue_length=1,
-                                       holder=holder_email))
-
-            newParty = QueuedParty(hName=holder_name,
-                                   hPhone=holder_num,
-                                   hMail=holder_email,
-                                   tBooked=datetime.now(),
-                                   index=0,
-                                   room_id=room_id,
-                                   slot_id=slot.id,
-                                   slot_date=slot.date,
-                                   slot_time=slot.time_slot,
-                                   passkey=holder_passkey)
-            db.session.add(newParty)
-            # Using the ORM and the SQL interface in the same scope needs should be haram I am so sorry
-            temp.update(slot.__CustomDict__())
-            db.session.commit()
+        newParty = QueuedParty(hName=holder_name,
+                                hPhone=holder_num,
+                                hMail=holder_email,
+                                tBooked=datetime.now(),
+                                index=0,
+                                room_id=room_id,
+                                slot_id=slot.id,
+                                slot_date=slot.date,
+                                slot_time=slot.time_slot,
+                                passkey=holder_passkey)
+        db.session.add(newParty)
+        # Using the ORM and the SQL interface in the same scope needs should be haram I am so sorry
+        temp.update(slot.__CustomDict__())
+        db.session.commit()
 
         return jsonify(temp), 201   
     except Exception as e:
@@ -214,44 +226,56 @@ def enqueueToRoom(room_id) -> Response:
     except ValueError as e:
         raise BadRequest(f"Invalid data sent to POST {request.root_path}")
     
+    # Rule 2: If a person has enqueued themselves to a room (either holding or waiting status), they cannot enqueue again.
+    partyQueued : list[QueuedParty] = db.session.execute(select(QueuedParty).where(and_
+                                                                                   (or_(QueuedParty.holder_email == holder_email,
+                                                                                        QueuedParty.holder_phone == holder_num
+                                                                                        ),
+        QueuedParty.room_id == room_id,
+                                                                                         QueuedParty.slot_time == booking_time,
+                                                                                         QueuedParty.slot_date == booking_date
+                                                                                        ))).scalars().all()
+    
+    if partyQueued:
+        raise Conflict("Credentials already in queue for this time slot")
+    
     try:
         temp = {}
-        with db.session.begin():
-            slot : Slot | None = db.session.execute(select(Slot)
-                                            .where(Slot.room == room_id, Slot.date == booking_date, Slot.time_slot == booking_time)
-                                            .with_for_update(nowait=True)
-                                            ).scalar_one_or_none()
+        slot : Slot | None = db.session.execute(select(Slot)
+                                        .where(Slot.room == room_id, Slot.date == booking_date, Slot.time_slot == booking_time)
+                                        .with_for_update(nowait=True)
+                                        ).scalar_one_or_none()
 
-            if not slot:
-                return jsonify("Slot Unavailable"), 404
-            if not slot.booked:
-                return jsonify({"redir" : True,
-                                "redir_endpoint" : url_for("bookRoom", room_id=room_id),
-                                "message" : "This room slot does not have any reservations. Would you like to reserve it first?"}), 409
-            if slot.queue_length >= app.config["MAX_QLEN"]:
-                return jsonify({"redir" : False,
-                                "redir_endpoint" : None,
-                                "message" : f"Queue length exceeds maximum allowed parties, which is {app.config['MAX_QLEN']}"}), 409
+        if not slot:
+            return jsonify("Slot Unavailable"), 404
+        if not slot.booked:
+            return jsonify({"redir" : True,
+                            "redir_endpoint" : url_for("bookRoom", room_id=room_id),
+                            "message" : "This room slot does not have any reservations. Would you like to reserve it first?"}), 409
+        if slot.queue_length >= app.config["MAX_QLEN"]:
+            return jsonify({"redir" : False,
+                            "redir_endpoint" : None,
+                            "message" : f"Queue length exceeds maximum allowed parties, which is {app.config['MAX_QLEN']}"}), 409
 
-            db.session.execute(update(Slot)
-                            .where(Slot.id == slot.id)
-                            .values(queue_length=slot.queue_length+1,
-                                    holder=holder_email))
+        db.session.execute(update(Slot)
+                        .where(Slot.id == slot.id)
+                        .values(queue_length=slot.queue_length+1,
+                                holder=holder_email))
 
-            newParty = QueuedParty(hName=holder_name,
-                                   hMail=holder_email,
-                                   hPhone=holder_num,
-                                   room_id=room_id,
-                                   tBooked=datetime.now(),
-                                   index=slot.queue_length+1,
-                                   slot_id=slot.id,
-                                   slot_time=slot.time_slot,
-                                   slot_date=slot.date,
-                                   passkey=holder_passkey)
-            db.session.add(newParty)
+        newParty = QueuedParty(hName=holder_name,
+                                hMail=holder_email,
+                                hPhone=holder_num,
+                                room_id=room_id,
+                                tBooked=datetime.now(),
+                                index=slot.queue_length+1,
+                                slot_id=slot.id,
+                                slot_time=slot.time_slot,
+                                slot_date=slot.date,
+                                passkey=holder_passkey)
+        db.session.add(newParty)
 
-            temp.update(slot.__CustomDict__())
-            db.session.commit()
+        temp.update(slot.__CustomDict__())
+        db.session.commit()
 
         return jsonify(temp), 201
     except Exception as e:
