@@ -177,7 +177,7 @@ def bookRoom(room_id) -> Response:
                                 hPhone=holder_num,
                                 hMail=holder_email,
                                 tBooked=datetime.now(),
-                                index=0,
+                                index=1,
                                 room_id=room_id,
                                 slot_id=slot.id,
                                 slot_date=slot.date,
@@ -231,7 +231,7 @@ def enqueueToRoom(room_id) -> Response:
                                                                                    (or_(QueuedParty.holder_email == holder_email,
                                                                                         QueuedParty.holder_phone == holder_num
                                                                                         ),
-        QueuedParty.room_id == room_id,
+                                                                                         QueuedParty.room_id == room_id,
                                                                                          QueuedParty.slot_time == booking_time,
                                                                                          QueuedParty.slot_date == booking_date
                                                                                         ))).scalars().all()
@@ -267,7 +267,7 @@ def enqueueToRoom(room_id) -> Response:
                                 hPhone=holder_num,
                                 room_id=room_id,
                                 tBooked=datetime.now(),
-                                index=slot.queue_length+1,
+                                index=slot.queue_length,
                                 slot_id=slot.id,
                                 slot_time=slot.time_slot,
                                 slot_date=slot.date,
